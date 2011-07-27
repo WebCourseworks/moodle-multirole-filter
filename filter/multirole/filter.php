@@ -22,27 +22,56 @@
  * http://www.gnu.org/licenses/gpl-2.0.txt
  */
 
-function multirole_filter($courseid, $text) {
-    global $CFG;
+// Use the HTML5 data-* style attributes so we still have valid HTML.
+define('MULTIROLE_FILTER_CAPABILITY_ATTRIBUTE', 'data-capability');
+define('MULTIROLE_FILTER_ROLE_ATTRIBUTE', 'data-role');
 
-    if (empty($text) or is_numeric($text)) {
+/**
+ * Multirole text filter implementation.
+ * 
+ * @uses MULTIROLE_FILTER_CAPABILITY_ATTRIBUTE
+ * @uses MULTIROLE_FILTER_ROLE_ATTRIBUTE
+ * @uses CONTEXT_COURSE
+ * @param int $courseid The id of the course the text is being filtered for.
+ * @param string $text The text to filter.
+ * @return string The filtered text.
+ */
+function multirole_filter($courseid, $text) {
+    if (empty($text)) {
+        return $text;
+    }
+
+    $capattributeused = stripos($text, MULTIROLE_FILTER_CAPABILITY_ATTRIBUTE) !== false;
+    $roleattributeused = stripos($text, MULTIROLE_FILTER_ROLE_ATTRIBUTE) !== false;
+
+    // Skip if there's no presence of the data-capability or data-role attribute in the text.
+    if (!$capattributeused && !$roleattributeused) {
         return $text;
     }
 
     $context = get_context_instance(CONTEXT_COURSE, $courseid);
 
     // Don't really care about parsing errors.
-    libxml_use_internal_errors(true);
+    $useerrors = libxml_use_internal_errors(true);
 
     $document = new DOMDocument();
     $document->loadHTML($text);
     $xpath = new DOMXPath($document);
 
     $mutated = false;
-    
-    // Filter
-    $mutated = $mutated | multirole_filter_caps($xpath, $document, $context);
-    $mutated = $mutated | multirole_filter_roles($xpath, $document, $context);
+
+    // Filter html based on capability.
+    if ($capattributeused) {
+        $mutated = $mutated | multirole_filter_caps($xpath, $document, $context);
+    }
+
+    // Filter html based on a role shortname.
+    if ($roleattributeused) {
+        $mutated = $mutated | multirole_filter_roles($xpath, $document, $context);
+    }
+
+    // Reset libxml_use_internal_errors back to what it was.
+    libxml_use_internal_errors($useerrors);
 
     // Skip saving the html if we didn't change anything.
     if (!$mutated) {
@@ -53,23 +82,26 @@ function multirole_filter($courseid, $text) {
 }
 
 /**
- * Filter any elements with the data-capability attribute,
+ * Filter any elements with the data-capability attribute.
+ * 
+ * @uses MULTIROLE_FILTER_CAPABILITY_ATTRIBUTE
+ * @param DOMXPath $xpath An xpath object for the supplied $document.
+ * @param DOMDocument $document The HTML document.
+ * @param object $context The current context to check capabilities against.
+ * @return bool Whether or not any changes were made to the $document.
  */
 function multirole_filter_caps($xpath, $document, $context) {
-    // This is the name of the attribute we'll be looking at.  Use the HTML5 data-* style attributes so we still have valid HTML.
-    $attributename = 'data-capability';
-
     $mutated = false;
 
-    foreach($xpath->query("//*[@{$attributename}]") as $node) {
-        $attribute = $node->attributes->getNamedItem($attributename);
+    foreach($xpath->query('//*[@'.MULTIROLE_FILTER_CAPABILITY_ATTRIBUTE.']') as $node) {
+        $attribute = $node->attributes->getNamedItem(MULTIROLE_FILTER_CAPABILITY_ATTRIBUTE);
 
         if (empty($attribute) || empty($attribute->nodeValue)) {
             continue;
         }
 
-        // Sanitize the passed in cap to ensure it might look something like type/mod:example.
-        $capability = preg_replace('/[^a-z,\/,:]/i', '', $attribute->nodeValue);
+        // Sanitize the passed in cap to ensure it might look something like type/mod2:example.
+        $capability = preg_replace('/[^a-z,0-9,\/,:]/i', '', $attribute->nodeValue);
 
         if (!has_capability($capability, $context)) {
             multirole_remove_node($document, $node);
@@ -81,18 +113,21 @@ function multirole_filter_caps($xpath, $document, $context) {
 }
 
 /**
- * Filter any elements with the data-role attribute,
+ * Filter any elements with the data-role attribute.
+ *
+ * @uses MULTIROLE_FILTER_ROLE_ATTRIBUTE
+ * @param DOMXPath $xpath An xpath object for the supplied $document.
+ * @param DOMDocument $document The HTML document.
+ * @param object $context The current context to check roles against.
+ * @return bool Whether or not any changes were made to the $document.
  */
 function multirole_filter_roles($xpath, $document, $context) {
-    // This is the name of the attribute we'll be looking at.  Use the HTML5 data-* style attributes so we still have valid HTML.
-    $attributename = 'data-role';
-
     $mutated = false;
 
     $roleshortnames = multirole_get_assigned_roles_shortnames($context);
 
-    foreach($xpath->query("//*[@{$attributename}]") as $node) {
-        $attribute = $node->attributes->getNamedItem($attributename);
+    foreach($xpath->query('//*[@'.MULTIROLE_FILTER_ROLE_ATTRIBUTE.']') as $node) {
+        $attribute = $node->attributes->getNamedItem(MULTIROLE_FILTER_ROLE_ATTRIBUTE);
 
         if (empty($attribute) || empty($attribute->nodeValue)) {
             continue;
@@ -112,6 +147,9 @@ function multirole_filter_roles($xpath, $document, $context) {
 
 /**
  * Remove a specific XMLNode from the XMLDocument.
+ *
+ * @param DOMDocument $document The document the node belongs to.
+ * @param DOMNode $node The node to remove.
  */
 function multirole_remove_node($document, $node) {
     if (!empty($node->parentNode)) {
@@ -123,6 +161,8 @@ function multirole_remove_node($document, $node) {
 
 /**
  * Get a list of all shortnames of roles assigned to the user on the given context or parent contexts.
+ *
+ * @param object $context The context to find the current user's roles for.
  */
 function multirole_get_assigned_roles_shortnames($context) {
     $roles = get_user_roles($context);    
