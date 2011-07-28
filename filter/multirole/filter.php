@@ -72,6 +72,8 @@ function multirole_filter($courseid, $text) {
 
     // Reset libxml_use_internal_errors back to what it was.
     libxml_use_internal_errors($useerrors);
+    // And clear the error buffer so we don't have that memory hanging around.
+    libxml_clear_errors();
 
     // Skip saving the html if we didn't change anything.
     if (!$mutated) {
@@ -100,8 +102,8 @@ function multirole_filter_caps($xpath, $document, $context) {
             continue;
         }
 
-        // Sanitize the passed in cap to ensure it might look something like type/mod2:example.
-        $capability = preg_replace('/[^a-z,0-9,\/,:]/i', '', $attribute->nodeValue);
+        // Sanitize the passed in cap to ensure it might look something like type/m.od2:exa_m-ple.
+        $capability = preg_replace('/[^a-z,0-9,\/,:,\.,-,_]/i', '', $attribute->nodeValue);
 
         if (!has_capability($capability, $context)) {
             multirole_remove_node($document, $node);
@@ -163,6 +165,7 @@ function multirole_remove_node($document, $node) {
  * Get a list of all shortnames of roles assigned to the user on the given context or parent contexts.
  *
  * @param object $context The context to find the current user's roles for.
+ * @return array Array of role short names.
  */
 function multirole_get_assigned_roles_shortnames($context) {
     $roles = get_user_roles($context);    
