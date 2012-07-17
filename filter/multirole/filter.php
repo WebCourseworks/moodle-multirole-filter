@@ -37,6 +37,8 @@ define('MULTIROLE_FILTER_ROLE_ATTRIBUTE', 'data-role');
  * @return string The filtered text.
  */
 function multirole_filter($courseid, $text) {
+    global $CFG;
+
     if (empty($text)) {
         return $text;
     }
@@ -79,6 +81,9 @@ function multirole_filter($courseid, $text) {
     if (!$mutated) {
         return $text;
     }
+
+    // This result cannot be cached because it's highly user specific.
+    $CFG->currenttextiscacheable = false;
 
     return $document->saveHTML();
 }
