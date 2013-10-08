@@ -1,7 +1,7 @@
 Requirements
 ============
 
-The multirole filter requires PHP 5 or later and any release of Moodle 1.9.
+The multirole filter requires PHP 5 or later and any release of Moodle 2.4 or later.
 
 Installation
 ============
@@ -11,7 +11,7 @@ Copy the filter/multirole directory into your Moodle installation's filter direc
 Configuration
 =============
 
-Enable the "Multirole" filter on your Moodle site.  For further help reference the [Moodle documentation on enabling filters](http://docs.moodle.org/19/en/Filters#Enabling_filters).
+Enable the "Multiple-role Content" filter on your Moodle site.  For further help reference the [Moodle documentation on managing filters](http://docs.moodle.org/24/en/Managing_filters).
 
 Use
 ===
